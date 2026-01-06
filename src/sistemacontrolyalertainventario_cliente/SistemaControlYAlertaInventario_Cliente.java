@@ -4,6 +4,8 @@
  */
 package sistemacontrolyalertainventario_cliente;
 
+import UI.LogIn;
+
 /**
  *
  * @author kira
@@ -15,6 +17,9 @@ public class SistemaControlYAlertaInventario_Cliente {
      */
     public static void main(String[] args) {
         // TODO code application logic here
+        java.awt.EventQueue.invokeLater(() -> {
+        new UI.LogIn().setVisible(true);
+    });
     }
     
 }
