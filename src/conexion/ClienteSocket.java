@@ -30,7 +30,7 @@ public class ClienteSocket {
 
     public boolean enviarLogin(String usuario, String password) {
         try {
-            salida.writeUTF("LOGIN|" + usuario + "|" + password);
+            salida.writeUTF("LOGIN:" + usuario + "|" + password);
             return entrada.readBoolean();
         } catch (IOException e) {
             return false;
