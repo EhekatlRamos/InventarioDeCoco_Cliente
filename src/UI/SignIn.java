@@ -51,7 +51,6 @@ public class SignIn extends JFrame {
         add(btnRegistrar);
         add(btnVolver);
 
-        // Evento para volver al Login
         btnVolver.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {

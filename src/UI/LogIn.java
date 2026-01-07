@@ -24,10 +24,9 @@ public class LogIn extends JFrame {
         setTitle("Inicio de Sesión - Sistema de Inventario");
         setSize(350, 250);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null); // Centrar en pantalla
-        setLayout(new GridLayout(4, 2, 10, 10));
+        setLocationRelativeTo(null);
+        setLayout(new GridLayout(3, 2, 10, 10));
 
-        // Componentes
         add(new JLabel("  Usuario:"));
         txtUsuario = new JTextField();
         add(txtUsuario);
@@ -42,12 +41,11 @@ public class LogIn extends JFrame {
         add(btnLogin);
         add(btnIrARegistro);
 
-        // Evento para abrir la ventana de Sign In
         btnIrARegistro.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 new SignIn().setVisible(true);
-                dispose(); // Cierra la ventana actual
+                dispose();
             }
         });
         
