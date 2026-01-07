@@ -8,12 +8,15 @@ package UI;
  *
  * @author kira
  */
+import conexion.ClienteSocket;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 public class LogIn extends JFrame {
+    private JTextField txtIP;
+    private JTextField txtPuerto;
     private JTextField txtUsuario;
     private JPasswordField txtPassword;
     private JButton btnLogin;
@@ -25,7 +28,16 @@ public class LogIn extends JFrame {
         setSize(350, 250);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-        setLayout(new GridLayout(3, 2, 10, 10));
+        setLayout(new GridLayout(5, 2, 10, 10)); //5 filas para el puerto y la ip
+        
+        
+        add(new JLabel("  Dirección IP:"));
+        txtIP = new JTextField();
+        add(txtIP);
+
+        add(new JLabel("  Puerto Servidor:"));
+        txtPuerto = new JTextField();
+        add(txtPuerto);
 
         add(new JLabel("  Usuario:"));
         txtUsuario = new JTextField();
@@ -50,12 +62,27 @@ public class LogIn extends JFrame {
         });
         
         
-        btnLogin.addActionListener(new ActionListener(){
-            @Override
-            public void actionPerformed(ActionEvent e){
-                new Inventario().setVisible(true);
-                dispose();
-            }
-        });
+        btnLogin.addActionListener(e -> {
+        String ip = txtIP.getText();
+        int puerto = Integer.parseInt(txtPuerto.getText());
+        String user = txtUsuario.getText();
+        String pass = new String(txtPassword.getPassword());
+
+        ClienteSocket cliente = new ClienteSocket();
+        if(txtIP.getText().isEmpty() || txtPuerto.getText().isEmpty()){
+        JOptionPane.showMessageDialog(this, "Por favor, configure la IP y el Puerto primero.");
+        return;
+        }
+        if (cliente.conectar(ip, puerto)) { // Intenta la conexión
+        if (cliente.enviarLogin(user, pass)) {
+            new Inventario().setVisible(true);
+            dispose();
+        } else {
+            JOptionPane.showMessageDialog(this, "Usuario o contraseña incorrectos.");
+        }
+    } else {
+        JOptionPane.showMessageDialog(this, "No se pudo conectar al servidor.");
+    }
+    });
     }
 }
