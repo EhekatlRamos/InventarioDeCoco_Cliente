@@ -74,13 +74,14 @@ public class LogIn extends JFrame {
         return;
         }
         if (cliente.conectar(ip, puerto)) { // Intenta la conexión
-        if (cliente.enviarLogin(user, pass)) {
-            new Inventario().setVisible(true);
-            dispose();
+            if (cliente.enviarLogin(user, pass)) {
+                // CAMBIO AQUÍ: Pasa el objeto 'cliente' al constructor de Inventario
+                new Inventario(cliente).setVisible(true); 
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, "Usuario o contraseña incorrectos.");
+            }
         } else {
-            JOptionPane.showMessageDialog(this, "Usuario o contraseña incorrectos.");
-        }
-    } else {
         JOptionPane.showMessageDialog(this, "No se pudo conectar al servidor.");
     }
     });

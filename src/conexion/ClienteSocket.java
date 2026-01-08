@@ -36,4 +36,14 @@ public class ClienteSocket {
             return false;
         }
     }
+    
+    public String solicitarInventario() {
+    try {
+        salida.writeUTF("GET_LISTADO");
+        return entrada.readUTF();
+    } catch (IOException e) {
+        return null;
+       }
+    }
+    
 }
