@@ -25,7 +25,6 @@ public class ClienteSocket {
             entrada = new DataInputStream(socket.getInputStream());
             return true;
         } catch (IOException e) {
-            System.out.println("Error al conectar: " + e.getMessage());
             return false;
         }
     }
@@ -42,35 +41,34 @@ public class ClienteSocket {
     public List<String[]> solicitarInventario() {
         List<String[]> productos = new ArrayList<>();
         try {
-            salida.writeUTF("GET_LISTADO");
+            salida.writeUTF("LISTAR_PRODUCTOS:"); // O "LISTAR_TODOS:" según necesidad 
             String inicio = entrada.readUTF();
-            if (!inicio.equals("LISTA_INICIO:")) return productos;
+            if (!inicio.startsWith("LISTA_INICIO:")) return productos;
             while (true) {
                 String linea = entrada.readUTF();
                 if (linea.equals("LISTA_FIN:")) break;
                 if (linea.startsWith("PRODUCTO:")) {
-                    String datosCrudos = linea.substring(9); 
-                    String[] datos = datosCrudos.split("\\|");
-                    productos.add(datos);
+                    productos.add(linea.substring(9).split("\\|"));
                 }
             }
-        } catch (IOException e) {
-            System.out.println("Error al recibir inventario: " + e.getMessage());
-        }
+        } catch (IOException e) { }
         return productos;
     }
-    public boolean guardarCambios(java.util.List<Object[]> listaFilas) {
+
+    public synchronized boolean guardarCambios(java.util.List<Object[]> listaFilas) {
         try {
-            salida.writeUTF("SAVE_LIST:"); // Comando para iniciar guardado
-            salida.writeInt(listaFilas.size()); // Enviar cantidad de filas
+            // Protocolo de envío masivo 
+            salida.writeUTF("LISTA_INICIO:"); 
 
             for (Object[] fila : listaFilas) {
-                // Formato sugerido: ID|Nombre|Desc|Stock|Umbral|Precio|Suscrito|Vigencia
-                String msg = String.format("%s|%s|%s|%s|%s|%s|%s|%s",
-                        fila[0], fila[1], fila[2], fila[3], fila[4], fila[5], fila[6], fila[7]);
+                // Formato: id|nombre|descripcion|cantidad|umbral|precio|vigencia
+                String msg = String.format("PRODUCTO:%s|%s|%s|%s|%s|%s|%s",
+                        fila[0], fila[1], fila[2], fila[3], fila[4], fila[5], fila[7]);
                 salida.writeUTF(msg);
             }
-            return entrada.readBoolean(); // Esperar confirmación del servidor
+            
+            salida.writeUTF("LISTA_FIN:");
+            return entrada.readBoolean(); // El servidor confirma la transacción
         } catch (IOException e) {
             return false;
         }

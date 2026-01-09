@@ -28,7 +28,7 @@ public class Inventario extends JFrame {
     private TableRowSorter<DefaultTableModel> sorter;
 
     public Inventario() {
-        this(new ClienteSocket()); // Llama al constructor real con un socket vacío
+        this(new ClienteSocket()); 
         System.out.println("Aviso: Iniciando en modo de prueba sin conexión.");
     }
     
@@ -42,33 +42,45 @@ public class Inventario extends JFrame {
         
         filasConAlerta = new HashSet<>();
 
+        // --- PANEL SUPERIOR ---
         JPanel panelSuperior = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         btnNuevo = new JButton("Nuevo +");
         panelSuperior.add(new JLabel("Inventario de Productos    "));
         panelSuperior.add(btnNuevo);
         add(panelSuperior, BorderLayout.NORTH);
 
+        // --- CONFIGURACIÓN DE TABLA (8 Columnas) ---
         String[] columnas = {"ID", "Nombre", "Descripción", "Stock Actual", "Mín. Umbral", "Precio", "Suscrito", "Vigencia"};
         modelo = new DefaultTableModel(columnas, 0) {
             @Override
             public Class<?> getColumnClass(int col) {
                 if (col == 0 || col == 3 || col == 4 || col == 7) return Integer.class;
-                if (col ==  5) return Double.class;
+                if (col == 5) return Double.class;
                 if (col == 6) return Boolean.class;
                 return String.class;
             }
+            @Override
+            public boolean isCellEditable(int row, int col) {
+                return col != 0; // El ID es gestionado por el servidor
+            }
         };
+
         tablaInventario = new JTable(modelo);
+        
+        // Sorter y Filtro para Vigencia (Oculta filas con Vigencia 0) 
         sorter = new TableRowSorter<>(modelo);
         tablaInventario.setRowSorter(sorter);
         sorter.setRowFilter(RowFilter.numberFilter(RowFilter.ComparisonType.EQUAL, 1, 7));
 
+        // Ocultar columna Vigencia (índice 7) de la vista
         tablaInventario.getColumnModel().getColumn(7).setMinWidth(0);
         tablaInventario.getColumnModel().getColumn(7).setMaxWidth(0);
         tablaInventario.getColumnModel().getColumn(7).setPreferredWidth(0);
+
         configurarResaltadoTabla(); 
         add(new JScrollPane(tablaInventario), BorderLayout.CENTER);
 
+        // --- PANEL DE NOTIFICACIONES ---
         JPanel panelDerecho = new JPanel(new BorderLayout());
         panelDerecho.setBorder(BorderFactory.createTitledBorder("Alertas del Sistema"));
         panelDerecho.setPreferredSize(new Dimension(250, 0));
@@ -79,9 +91,10 @@ public class Inventario extends JFrame {
         panelDerecho.add(new JScrollPane(listaNotificaciones), BorderLayout.CENTER);
         add(panelDerecho, BorderLayout.EAST);
 
+        // --- PANEL INFERIOR (BOTONES) ---
         JPanel panelInferior = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
-        btnEliminar = new JButton("Eliminar Seleccionado");
-        btnGuardar = new JButton("Guardar Cambios");
+        btnEliminar = new JButton("Desactivar Seleccionado");
+        btnGuardar = new JButton("Sincronizar con Servidor");
         btnSimularAlerta = new JButton("Simular Alerta Local");
 
         panelInferior.add(btnEliminar);
@@ -89,22 +102,27 @@ public class Inventario extends JFrame {
         panelInferior.add(btnSimularAlerta);
         add(panelInferior, BorderLayout.SOUTH);
 
-        btnSimularAlerta.addActionListener(e -> {
-            recibirAlertaDesdeSocket(2, "Stock crítico.");
-        });
+        // --- LÓGICA DE EVENTOS ---
+
+        btnSimularAlerta.addActionListener(e -> recibirAlertaDesdeSocket(2, "Stock crítico."));
+
+        // RF11: Agregar fila localmente [cite: 7]
         btnNuevo.addActionListener(e -> {
             modelo.addRow(new Object[]{0, "Nuevo Producto", "", 0, 0, 0.0, true, 1});
         });
+
+        // RF11: Borrado lógico (Vigencia = 0) 
         btnEliminar.addActionListener(e -> {
             int selectedRow = tablaInventario.getSelectedRow();
             if (selectedRow != -1) {
                 int modelRow = tablaInventario.convertRowIndexToModel(selectedRow);
-                modelo.setValueAt(0, modelRow, 7); // Vigencia = 0
+                modelo.setValueAt(0, modelRow, 7); // Cambiar vigencia a 0 (el filtro la ocultará)
             } else {
-                JOptionPane.showMessageDialog(this, "Seleccione un producto para eliminar.");
+                JOptionPane.showMessageDialog(this, "Seleccione un producto.");
             }
         });
 
+        // RF08 y RF11: Sincronización masiva al servidor 
         btnGuardar.addActionListener(e -> {
             java.util.List<Object[]> datosCompletos = new java.util.ArrayList<>();
             for (int i = 0; i < modelo.getRowCount(); i++) {
@@ -119,35 +137,35 @@ public class Inventario extends JFrame {
                 boolean exito = cliente.guardarCambios(datosCompletos);
                 SwingUtilities.invokeLater(() -> {
                     if(exito) JOptionPane.showMessageDialog(this, "Sincronización exitosa.");
-                    else JOptionPane.showMessageDialog(this, "Error al guardar.");
+                    else JOptionPane.showMessageDialog(this, "Error al guardar cambios.");
                 });
             }).start();
         });
+
+        cargarDatosDesdeServidor();
     }
+
     private void cargarDatosDesdeServidor() {
-        // Llamar al nuevo método que devuelve la lista procesada
-        java.util.List<String[]> listaProductos = cliente.solicitarInventario();
-
-        if (!listaProductos.isEmpty()) {
-            modelo.setRowCount(0); // Limpiar la tabla antes de llenar
-
-            for (String[] datos : listaProductos) {
-                // Tu tabla tiene 7 columnas, pero el servidor manda 6.
-                // Mapeo: ID, Nombre, Descripción, Cantidad, Umbral, Precio + [Suscrito]
-                Object[] filaParaTabla = new Object[7];
-                filaParaTabla[0] = Integer.parseInt(datos[0]); // ID
-                filaParaTabla[1] = datos[1];                   // Nombre
-                filaParaTabla[2] = datos[2];                   // Descripción
-                filaParaTabla[3] = Integer.parseInt(datos[3]); // Stock Actual
-                filaParaTabla[4] = Integer.parseInt(datos[4]); // Mín. Umbral
-                filaParaTabla[5] = Double.parseDouble(datos[5]); // Precio
-                filaParaTabla[6] = true;                       // Suscrito (Default local)
-
-                modelo.addRow(filaParaTabla);
-            }
-        } else {
-            JOptionPane.showMessageDialog(this, "No se recibieron productos del servidor.");
-        }
+        new Thread(() -> {
+            java.util.List<String[]> listaProductos = cliente.solicitarInventario();
+            SwingUtilities.invokeLater(() -> {
+                if (listaProductos != null) {
+                    modelo.setRowCount(0); 
+                    for (String[] datos : listaProductos) {
+                        Object[] fila = new Object[8]; 
+                        fila[0] = Integer.parseInt(datos[0]); // ID
+                        fila[1] = datos[1];                   // Nombre
+                        fila[2] = datos[2];                   // Descripción
+                        fila[3] = Integer.parseInt(datos[3]); // Stock
+                        fila[4] = Integer.parseInt(datos[4]); // Umbral
+                        fila[5] = Double.parseDouble(datos[5]); // Precio
+                        fila[6] = true;                       // Suscrito
+                        fila[7] = Integer.parseInt(datos[6]); // Vigencia (desde servidor) 
+                        modelo.addRow(fila);
+                    }
+                }
+            });
+        }).start();
     }
 
     public void agregarAlerta(String mensaje) {
@@ -160,7 +178,7 @@ public class Inventario extends JFrame {
                     marcarFilaConAlerta(id);
                 } catch (Exception e) { }
             }
-            cargarDatosDesdeServidor(); 
+            cargarDatosDesdeServidor(); // Siempre actualizar al recibir cambio o alerta
         });
     }
 
@@ -183,9 +201,7 @@ public class Inventario extends JFrame {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, 
                     boolean isSelected, boolean hasFocus, int row, int column) {
-                
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                
                 if (filasConAlerta.contains(row)) {
                     c.setBackground(new Color(255, 200, 200)); 
                     c.setForeground(Color.RED);
