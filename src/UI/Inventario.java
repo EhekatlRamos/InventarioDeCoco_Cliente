@@ -67,10 +67,10 @@ public class Inventario extends JFrame {
 
         tablaInventario = new JTable(modelo);
         
-        // Sorter y Filtro para Vigencia (Oculta filas con Vigencia 0) 
-        sorter = new TableRowSorter<>(modelo);
-        tablaInventario.setRowSorter(sorter);
-        sorter.setRowFilter(RowFilter.numberFilter(RowFilter.ComparisonType.EQUAL, 1, 7));
+//        // Sorter y Filtro para Vigencia (Oculta filas con Vigencia 0) 
+//        sorter = new TableRowSorter<>(modelo);
+//        tablaInventario.setRowSorter(sorter);
+//        sorter.setRowFilter(RowFilter.numberFilter(RowFilter.ComparisonType.EQUAL, 1, 7));
 
         // Ocultar columna Vigencia (índice 7) de la vista
         tablaInventario.getColumnModel().getColumn(7).setMinWidth(0);
