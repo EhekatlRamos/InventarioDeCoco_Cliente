@@ -59,5 +59,20 @@ public class ClienteSocket {
         }
         return productos;
     }
-    
+    public boolean guardarCambios(java.util.List<Object[]> listaFilas) {
+        try {
+            salida.writeUTF("SAVE_LIST:"); // Comando para iniciar guardado
+            salida.writeInt(listaFilas.size()); // Enviar cantidad de filas
+
+            for (Object[] fila : listaFilas) {
+                // Formato sugerido: ID|Nombre|Desc|Stock|Umbral|Precio|Suscrito|Vigencia
+                String msg = String.format("%s|%s|%s|%s|%s|%s|%s|%s",
+                        fila[0], fila[1], fila[2], fila[3], fila[4], fila[5], fila[6], fila[7]);
+                salida.writeUTF(msg);
+            }
+            return entrada.readBoolean(); // Esperar confirmación del servidor
+        } catch (IOException e) {
+            return false;
+        }
+    }
 }

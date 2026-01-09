@@ -15,6 +15,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.util.HashSet;
 import java.util.Set;
+import javax.swing.table.TableRowSorter;
 
 public class Inventario extends JFrame {
     private JTable tablaInventario;
@@ -24,6 +25,7 @@ public class Inventario extends JFrame {
     private JList<String> listaNotificaciones;
     private Set<Integer> filasConAlerta;
     private ClienteSocket cliente;
+    private TableRowSorter<DefaultTableModel> sorter;
 
     public Inventario() {
         this(new ClienteSocket()); // Llama al constructor real con un socket vacío
@@ -46,23 +48,24 @@ public class Inventario extends JFrame {
         panelSuperior.add(btnNuevo);
         add(panelSuperior, BorderLayout.NORTH);
 
-        String[] columnas = {"ID", "Nombre", "Descripción", "Stock Actual", "Mín. Umbral", "Precio", "Suscrito"};
+        String[] columnas = {"ID", "Nombre", "Descripción", "Stock Actual", "Mín. Umbral", "Precio", "Suscrito", "Vigencia"};
         modelo = new DefaultTableModel(columnas, 0) {
             @Override
-            public Class<?> getColumnClass(int posicion) {
-                switch (posicion) {
-                    case 0: case 3: case 4: return Integer.class;
-                    case 5: return Double.class;
-                    case 6: return Boolean.class;
-                    default: return String.class;
-                }
+            public Class<?> getColumnClass(int col) {
+                if (col == 0 || col == 3 || col == 4 || col == 7) return Integer.class;
+                if (col ==  5) return Double.class;
+                if (col == 6) return Boolean.class;
+                return String.class;
             }
         };
-
-        modelo.addRow(new Object[]{1, "Coco Rayado", "Bolsa 500g", 50, 10, 15.50, true});
-        modelo.addRow(new Object[]{2, "Aceite de Coco", "Frasco de vidrio", 3, 5, 45.00, true});
-
         tablaInventario = new JTable(modelo);
+        sorter = new TableRowSorter<>(modelo);
+        tablaInventario.setRowSorter(sorter);
+        sorter.setRowFilter(RowFilter.numberFilter(RowFilter.ComparisonType.EQUAL, 1, 7));
+
+        tablaInventario.getColumnModel().getColumn(7).setMinWidth(0);
+        tablaInventario.getColumnModel().getColumn(7).setMaxWidth(0);
+        tablaInventario.getColumnModel().getColumn(7).setPreferredWidth(0);
         configurarResaltadoTabla(); 
         add(new JScrollPane(tablaInventario), BorderLayout.CENTER);
 
@@ -89,7 +92,37 @@ public class Inventario extends JFrame {
         btnSimularAlerta.addActionListener(e -> {
             recibirAlertaDesdeSocket(2, "Stock crítico.");
         });
-        cargarDatosDesdeServidor();
+        btnNuevo.addActionListener(e -> {
+            modelo.addRow(new Object[]{0, "Nuevo Producto", "", 0, 0, 0.0, true, 1});
+        });
+        btnEliminar.addActionListener(e -> {
+            int selectedRow = tablaInventario.getSelectedRow();
+            if (selectedRow != -1) {
+                int modelRow = tablaInventario.convertRowIndexToModel(selectedRow);
+                modelo.setValueAt(0, modelRow, 7); // Vigencia = 0
+            } else {
+                JOptionPane.showMessageDialog(this, "Seleccione un producto para eliminar.");
+            }
+        });
+
+        btnGuardar.addActionListener(e -> {
+            java.util.List<Object[]> datosCompletos = new java.util.ArrayList<>();
+            for (int i = 0; i < modelo.getRowCount(); i++) {
+                Object[] fila = new Object[8];
+                for (int j = 0; j < 8; j++) {
+                    fila[j] = modelo.getValueAt(i, j);
+                }
+                datosCompletos.add(fila);
+            }
+
+            new Thread(() -> {
+                boolean exito = cliente.guardarCambios(datosCompletos);
+                SwingUtilities.invokeLater(() -> {
+                    if(exito) JOptionPane.showMessageDialog(this, "Sincronización exitosa.");
+                    else JOptionPane.showMessageDialog(this, "Error al guardar.");
+                });
+            }).start();
+        });
     }
     private void cargarDatosDesdeServidor() {
         // Llamar al nuevo método que devuelve la lista procesada
@@ -119,18 +152,15 @@ public class Inventario extends JFrame {
 
     public void agregarAlerta(String mensaje) {
         SwingUtilities.invokeLater(() -> {
-            modeloNotificaciones.insertElementAt("⚠️ " + mensaje, 0);
-            Toolkit.getDefaultToolkit().beep();
-
+            modeloNotificaciones.insertElementAt("📢 Actualización: " + mensaje, 0);
             if (mensaje.contains("|")) {
                 try {
                     String[] partes = mensaje.split("\\|");
                     int id = Integer.parseInt(partes[0].trim());
-                    String texto = partes[1].trim();
                     marcarFilaConAlerta(id);
-                } catch (Exception e) {
-                }
+                } catch (Exception e) { }
             }
+            cargarDatosDesdeServidor(); 
         });
     }
 
