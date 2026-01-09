@@ -13,130 +13,175 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class Inventario extends JFrame {
     private JTable tablaInventario;
     private DefaultTableModel modelo;
-    private JButton btnNuevo, btnEliminar, btnGuardar, btnSimularAlerta;
-    private DefaultListModel<String> modeloNotificaciones; 
+    private JButton btnNuevo, btnEliminar, btnGuardar, btnRefrescar;
+    private DefaultListModel<String> modeloNotificaciones;
     private JList<String> listaNotificaciones;
-    private Set<Integer> filasConAlerta;
+    
+    private Set<Integer> filasConAlerta; 
+    private List<Integer> idsParaDesactivar; 
     private ClienteSocket cliente;
 
-    public Inventario() {
-        this(new ClienteSocket()); // Llama al constructor real con un socket vacío
-        System.out.println("Aviso: Iniciando en modo de prueba sin conexión.");
-    }
-    
     public Inventario(ClienteSocket cliente) {
         this.cliente = cliente;
+        this.filasConAlerta = new HashSet<>(); 
+        this.idsParaDesactivar = new ArrayList<>();
+        
         setTitle("Gestión de Inventario - Sistema de Alertas");
-        setSize(1000, 500); 
+        setSize(1100, 600);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(10, 10));
-        
-        filasConAlerta = new HashSet<>();
 
+        initComponents();
+        cargarDatosDesdeServidor();
+    }
+
+    private void initComponents() {
         JPanel panelSuperior = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        btnNuevo = new JButton("Nuevo +");
+        btnNuevo = new JButton("Nuevo Producto +");
+        btnRefrescar = new JButton("Refrescar");
         panelSuperior.add(new JLabel("Inventario de Productos    "));
+        panelSuperior.add(btnRefrescar);
         panelSuperior.add(btnNuevo);
         add(panelSuperior, BorderLayout.NORTH);
 
-        String[] columnas = {"ID", "Nombre", "Descripción", "Stock Actual", "Mín. Umbral", "Precio", "Suscrito"};
+        // RF07: Listado en tabla 
+        String[] columnas = {"ID", "Nombre", "Descripción", "Stock", "Umbral", "Precio", "Vigencia"};
         modelo = new DefaultTableModel(columnas, 0) {
             @Override
-            public Class<?> getColumnClass(int posicion) {
-                switch (posicion) {
-                    case 0: case 3: case 4: return Integer.class;
-                    case 5: return Double.class;
-                    case 6: return Boolean.class;
-                    default: return String.class;
-                }
+            public Class<?> getColumnClass(int col) {
+                if (col == 0 || col == 3 || col == 4) return Integer.class;
+                if (col == 5) return Double.class;
+                return String.class;
             }
+            @Override
+            public boolean isCellEditable(int row, int col) { return col != 0; }
         };
-
-        modelo.addRow(new Object[]{1, "Coco Rayado", "Bolsa 500g", 50, 10, 15.50, true});
-        modelo.addRow(new Object[]{2, "Aceite de Coco", "Frasco de vidrio", 3, 5, 45.00, true});
 
         tablaInventario = new JTable(modelo);
         configurarResaltadoTabla(); 
         add(new JScrollPane(tablaInventario), BorderLayout.CENTER);
 
+        // RF09: Panel de notificaciones 
         JPanel panelDerecho = new JPanel(new BorderLayout());
         panelDerecho.setBorder(BorderFactory.createTitledBorder("Alertas del Sistema"));
-        panelDerecho.setPreferredSize(new Dimension(250, 0));
-        
+        panelDerecho.setPreferredSize(new Dimension(300, 0));
         modeloNotificaciones = new DefaultListModel<>();
         listaNotificaciones = new JList<>(modeloNotificaciones);
-        listaNotificaciones.setForeground(Color.RED);
         panelDerecho.add(new JScrollPane(listaNotificaciones), BorderLayout.CENTER);
         add(panelDerecho, BorderLayout.EAST);
 
         JPanel panelInferior = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
         btnEliminar = new JButton("Eliminar Seleccionado");
-        btnGuardar = new JButton("Guardar Cambios");
-        btnSimularAlerta = new JButton("Simular Alerta Local");
+        btnGuardar = new JButton("GUARDAR CAMBIOS");
+        btnGuardar.setBackground(new Color(0, 100, 0));
+        btnGuardar.setForeground(Color.WHITE);
 
         panelInferior.add(btnEliminar);
         panelInferior.add(btnGuardar);
-        panelInferior.add(btnSimularAlerta);
         add(panelInferior, BorderLayout.SOUTH);
 
-        btnSimularAlerta.addActionListener(e -> {
-            recibirAlertaDesdeSocket(2, "Stock crítico.");
-        });
-        cargarDatosDesdeServidor();
-    }
-    private void cargarDatosDesdeServidor() {
-        // Llamar al nuevo método que devuelve la lista procesada
-        java.util.List<String[]> listaProductos = cliente.solicitarInventario();
+        // Listeners CRUD Local
+        btnNuevo.addActionListener(e -> modelo.addRow(new Object[]{0, "Nuevo", "...", 0, 0, 0.0, "1"}));
 
-        if (!listaProductos.isEmpty()) {
-            modelo.setRowCount(0); // Limpiar la tabla antes de llenar
-
-            for (String[] datos : listaProductos) {
-                // Tu tabla tiene 7 columnas, pero el servidor manda 6.
-                // Mapeo: ID, Nombre, Descripción, Cantidad, Umbral, Precio + [Suscrito]
-                Object[] filaParaTabla = new Object[7];
-                filaParaTabla[0] = Integer.parseInt(datos[0]); // ID
-                filaParaTabla[1] = datos[1];                   // Nombre
-                filaParaTabla[2] = datos[2];                   // Descripción
-                filaParaTabla[3] = Integer.parseInt(datos[3]); // Stock Actual
-                filaParaTabla[4] = Integer.parseInt(datos[4]); // Mín. Umbral
-                filaParaTabla[5] = Double.parseDouble(datos[5]); // Precio
-                filaParaTabla[6] = true;                       // Suscrito (Default local)
-
-                modelo.addRow(filaParaTabla);
-            }
-        } else {
-            JOptionPane.showMessageDialog(this, "No se recibieron productos del servidor.");
-        }
-    }
-
-    public void agregarAlerta(String mensaje) {
-        SwingUtilities.invokeLater(() -> {
-            modeloNotificaciones.insertElementAt("⚠️ " + mensaje, 0);
-            Toolkit.getDefaultToolkit().beep();
-
-            if (mensaje.contains("|")) {
-                try {
-                    String[] partes = mensaje.split("\\|");
-                    int id = Integer.parseInt(partes[0].trim());
-                    String texto = partes[1].trim();
-                    marcarFilaConAlerta(id);
-                } catch (Exception e) {
-                }
+        btnEliminar.addActionListener(e -> {
+            int fila = tablaInventario.getSelectedRow();
+            if (fila >= 0) {
+                int id = (int) modelo.getValueAt(fila, 0);
+                if (id != 0) idsParaDesactivar.add(id); // Registrar para desactivar en server [cite: 77]
+                modelo.removeRow(fila);
             }
         });
+
+        btnGuardar.addActionListener(e -> {
+            btnGuardar.setEnabled(false);
+            new Thread(this::sincronizarConServidor).start();
+        });
+
+        btnRefrescar.addActionListener(e -> cargarDatosDesdeServidor());
     }
 
-    private void marcarFilaConAlerta(int idProducto) {
+    private void sincronizarConServidor() {
+        int vExitos = 0;
+        int vErrores = 0;
+
+        // Procesar cambios en tabla
         for (int i = 0; i < modelo.getRowCount(); i++) {
-            if (modelo.getValueAt(i, 0).equals(idProducto)) {
+            int id = (int) modelo.getValueAt(i, 0);
+            String nom = (String) modelo.getValueAt(i, 1);
+            String des = (String) modelo.getValueAt(i, 2);
+            int stock = (int) modelo.getValueAt(i, 3);
+            int umb = (int) modelo.getValueAt(i, 4);
+            double pre = (double) modelo.getValueAt(i, 5);
+
+            if (id == 0) {
+                if (cliente.insertarProducto(nom, des, stock, umb, pre)) vExitos++;
+                else vErrores++;
+            } else {
+                if (cliente.actualizarCantidad(id, stock) && cliente.actualizarUmbral(id, umb)) vExitos++;
+                else vErrores++;
+            }
+        }
+
+        // Procesar bajas (Soft Delete) [cite: 81]
+        for (int id : idsParaDesactivar) {
+            if (cliente.desactivarProducto(id)) vExitos++;
+            else vErrores++;
+        }
+        idsParaDesactivar.clear();
+
+        // Solución al error de variables finales/efectivamente finales
+        final int fExitos = vExitos;
+        final int fErrores = vErrores;
+
+        SwingUtilities.invokeLater(() -> {
+            JOptionPane.showMessageDialog(this, "Sincronización terminada.\nÉxitos: " + fExitos + "\nErrores: " + fErrores);
+            btnGuardar.setEnabled(true);
+            cargarDatosDesdeServidor();
+        });
+    }
+
+    private void cargarDatosDesdeServidor() {
+        List<String[]> productos = cliente.solicitarInventario();
+        SwingUtilities.invokeLater(() -> {
+            modelo.setRowCount(0);
+            filasConAlerta.clear();
+            for (String[] p : productos) {
+                modelo.addRow(new Object[]{
+                    Integer.parseInt(p[0]), p[1], p[2], 
+                    Integer.parseInt(p[3]), Integer.parseInt(p[4]), 
+                    Double.parseDouble(p[5]), p[6]
+                });
+            }
+        });
+    }
+
+    public void agregarAlerta(String msg) {
+        SwingUtilities.invokeLater(() -> {
+            if (msg.startsWith("ALERTA:")) { // Formato simplificado [cite: 126]
+                try {
+                    int id = Integer.parseInt(msg.substring(7).trim());
+                    String detalles = cliente.obtenerProducto(id); // RF09: Detalle sin bloqueo 
+                    modeloNotificaciones.insertElementAt("⚠️ " + detalles, 0);
+                    marcarFilaConAlerta(id); // RF10: Resaltar producto 
+                    Toolkit.getDefaultToolkit().beep();
+                } catch (Exception e) { }
+            }
+        });
+    }
+
+    private void marcarFilaConAlerta(int id) {
+        for (int i = 0; i < modelo.getRowCount(); i++) {
+            Object cell = modelo.getValueAt(i, 0);
+            if (cell != null && cell.toString().equals(String.valueOf(id))) {
                 filasConAlerta.add(i);
                 break;
             }
@@ -144,26 +189,19 @@ public class Inventario extends JFrame {
         tablaInventario.repaint();
     }
 
-    public void recibirAlertaDesdeSocket(int idProducto, String mensaje) {
-        agregarAlerta(idProducto + " | " + mensaje);
-    }
-
     private void configurarResaltadoTabla() {
         tablaInventario.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
-            public Component getTableCellRendererComponent(JTable table, Object value, 
-                    boolean isSelected, boolean hasFocus, int row, int column) {
-                
-                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                
-                if (filasConAlerta.contains(row)) {
-                    c.setBackground(new Color(255, 200, 200)); 
-                    c.setForeground(Color.RED);
+            public Component getTableCellRendererComponent(JTable t, Object v, boolean s, boolean f, int r, int c) {
+                Component comp = super.getTableCellRendererComponent(t, v, s, f, r, c);
+                if (filasConAlerta.contains(r)) {
+                    comp.setBackground(new Color(255, 200, 200)); // RF10: Resaltado visual 
+                    comp.setForeground(Color.RED);
                 } else {
-                    c.setBackground(isSelected ? table.getSelectionBackground() : Color.WHITE);
-                    c.setForeground(isSelected ? table.getSelectionForeground() : Color.BLACK);
+                    comp.setBackground(s ? t.getSelectionBackground() : Color.WHITE);
+                    comp.setForeground(s ? t.getSelectionForeground() : Color.BLACK);
                 }
-                return c;
+                return comp;
             }
         });
     }
