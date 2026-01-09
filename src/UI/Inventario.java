@@ -170,15 +170,24 @@ public class Inventario extends JFrame {
 
     public void agregarAlerta(String mensaje) {
         SwingUtilities.invokeLater(() -> {
-            modeloNotificaciones.insertElementAt("📢 Actualización: " + mensaje, 0);
-            if (mensaje.contains("|")) {
-                try {
-                    String[] partes = mensaje.split("\\|");
-                    int id = Integer.parseInt(partes[0].trim());
-                    marcarFilaConAlerta(id);
-                } catch (Exception e) { }
+            if (mensaje.startsWith("ALERTA:")) {
+                // 1. Extraer ID del mensaje "ALERTA:X" 
+                int id = Integer.parseInt(mensaje.substring(7));
+
+                // 2. Pedir detalles en un hilo para no bloquear la UI
+                new Thread(() -> {
+                    String[] d = cliente.obtenerDetallesProducto(id);
+                    if (d != null) {
+                        SwingUtilities.invokeLater(() -> {
+                            // 3. Mostrar mensaje detallado al usuario [cite: 147]
+                            String info = d[1] + " tiene stock bajo (" + d[3] + "/" + d[4] + ")";
+                            modeloNotificaciones.insertElementAt("⚠️ " + info, 0);
+                            marcarFilaConAlerta(id);
+                            cargarDatosDesdeServidor(); // Refrescar tabla [cite: 250]
+                        });
+                    }
+                }).start();
             }
-            cargarDatosDesdeServidor(); // Siempre actualizar al recibir cambio o alerta
         });
     }
 

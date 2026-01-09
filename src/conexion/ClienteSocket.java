@@ -73,4 +73,15 @@ public class ClienteSocket {
             return false;
         }
     }
+    
+    public String[] obtenerDetallesProducto(int id) {
+        try {
+            salida.writeUTF("OBTENER_PRODUCTO:" + id); // Solicita detalles según protocolo 
+            String resp = entrada.readUTF();
+            if (resp.startsWith("PRODUCTO:")) {
+                return resp.substring(9).split("\\|"); // Extrae los datos [cite: 145]
+            }
+        } catch (IOException e) {}
+        return null;
+    }
 }
