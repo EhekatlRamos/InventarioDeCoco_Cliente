@@ -10,6 +10,8 @@ package conexion;
  */
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ClienteSocket {
     private Socket socket;
@@ -37,13 +39,25 @@ public class ClienteSocket {
         }
     }
     
-    public String solicitarInventario() {
-    try {
-        salida.writeUTF("GET_LISTADO");
-        return entrada.readUTF();
-    } catch (IOException e) {
-        return null;
-       }
+    public List<String[]> solicitarInventario() {
+        List<String[]> productos = new ArrayList<>();
+        try {
+            salida.writeUTF("GET_LISTADO");
+            String inicio = entrada.readUTF();
+            if (!inicio.equals("LISTA_INICIO:")) return productos;
+            while (true) {
+                String linea = entrada.readUTF();
+                if (linea.equals("LISTA_FIN:")) break;
+                if (linea.startsWith("PRODUCTO:")) {
+                    String datosCrudos = linea.substring(9); 
+                    String[] datos = datosCrudos.split("\\|");
+                    productos.add(datos);
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Error al recibir inventario: " + e.getMessage());
+        }
+        return productos;
     }
     
 }
